@@ -1,0 +1,54 @@
+# Compiled binaries
+1
+1_test
+1_v2
+o
+o_local
+o_test
+o1_interactive
+best
+allstar
+deepstar
+final
+main
+main2
+main3
+main_test
+main_test_seed
+main3_test
+eval_seed
+verify_seed
+90_run
+6_run
+100
+100_interactive
+test100
+test_1v2
+test_allstar
+test_gen
+test_local
+test_parallel
+test_parallel_full
+test_multi_seed
+test_single_level
+test_level
+allstar_test
+allstar_v2
+4_test
+
+# Build artifacts
+build/
+__pycache__/
+
+# Editor
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Screenshots
+*.png
+
+# Output directory
+output/
