@@ -1,0 +1,706 @@
+Project Block Sequence Grand Master! feat. Jiahao
+游戏背景
+Project Block Sequence Grand Master! 是一款经典的连线消除游戏。这也是隔壁班嘉豪的算法课期中大作业。
+
+嘉豪最近迷上了电子音乐，天天穿着黑卫衣、戴着黑口罩，逢人便宣称自己是一名 “极客”。他整天把 “黑入评测机主板”、“破解底层逻辑” 挂在嘴边，但实际上他连个简单的 DFS 都会写出 Segmentation Fault 。眼看算法课的期中作业死线逼近，他的好兄弟 Riki 实在看不下去了，决定求助于你。
+
+你需要帮助嘉豪编写一个程序，通过与评测机的交互，在共计 5 个难度递进的关卡中、在有限步数内尽可能获得高分。这样嘉豪才能继续在别人面前装配他的极客滤镜。
+
+游戏玩法
+Riki 叹了口气，为你整理了游戏的基础设定：
+
+游戏在一个 
+N
+×
+N
+N×N 的棋盘上进行（第 1-4 关 
+N
+=
+10
+N=10，第 5 关 
+N
+=
+12
+N=12）。棋盘上的每个格子 
+(
+r
+,
+c
+)
+(r,c) 存放一个方块，其中 
+r
+r 为行坐标（
+0
+≤
+r
+<
+N
+0≤r<N，
+r
+=
+0
+r=0 为顶部），
+c
+c 为列坐标（
+0
+≤
+c
+<
+N
+0≤c<N，
+c
+=
+0
+c=0 为最左端）。
+
+每一步，你需要输出一条连线路径，评测机会校验路径并消除上面的方块，然后触发重力下落与新块补充，最后将新的棋盘状态返回给你。
+
+块类型
+为了彰显自己程序的 “黑客” 属性，嘉豪在游戏里塞入了一些奇怪的方块（其实这些方块本身就存在）：
+
+值	含义	出现关卡
+1
+∼
+5
+1∼5	普通色块（共有 5 种基础颜色）	全部
+0
+0	万能块（可以伪装成任意颜色的色块）	第 3、5 关
+−
+1
+∼
+−
+5
+−1∼−5	炸弹块（核心颜色为绝对值 
+∣
+值
+∣
+∣值∣，带有爆炸属性）	第 4、5 关
+连线规则
+嘉豪宣称他的防火墙校验极其严格。你每步输出的一条路径 
+[
+(
+r
+1
+,
+c
+1
+)
+,
+(
+r
+2
+,
+c
+2
+)
+,
+…
+,
+(
+r
+k
+,
+c
+k
+)
+]
+[(r 
+1
+​
+ ,c 
+1
+​
+ ),(r 
+2
+​
+ ,c 
+2
+​
+ ),…,(r 
+k
+​
+ ,c 
+k
+​
+ )]，必须完美符合以下规则，否则将被评测机拦截：
+
+长度限制：路径长度 
+k
+≥
+2
+k≥2。
+合法坐标：所有坐标在棋盘范围内，且互不重复。
+四联相通：相邻两点必须满足：
+∣
+r
+i
+−
+r
+i
+−
+1
+∣
++
+∣
+c
+i
+−
+c
+i
+−
+1
+∣
+=
+1
+∣r 
+i
+​
+ −r 
+i−1
+​
+ ∣+∣c 
+i
+​
+ −c 
+i−1
+​
+ ∣=1。
+颜色一致：路径上所有非零方块的绝对颜色值（
+∣
+值
+∣
+∣值∣）必须完全相同。万能块 
+0
+0 可与任意颜色搭配。如果路径上全是万能块，系统也会认定其合法。
+为了减少出错的可能性，Riki 为你提供了一些示例。在下面的图片中，除了原本的连线是一种可行方案外，白框中也给出了几种可能的路径。在这些之中，用绿线标出的是合法路径，而红线则是非法路径。 
+
+记分条件
+Riki 从嘉豪那杂乱无章的草稿纸上破译了得分公式。设本次合法路径长度为 
+k
+k。
+
+基础得分 
+S
+S：
+
+S
+=
+10
+k
++
+18
+×
+⌊
+(
+k
+−
+1
+)
+2
+⌋
+S=10k+18×⌊( 
+k
+​
+ −1) 
+2
+ ⌋
+炸弹附加得分（第 4、5 关）： 路径中每个炸弹块消除后，会引爆其周围 
+3
+×
+3
+3×3 九宫格内所有不在本次路径中的非空方块，每个被引爆的方块额外 
++
+10
++10 分（炸弹爆炸不会引发连锁反应）。
+
+环境机制（重力与补充）
+嘉豪宣称他掌控了重力。当你消除方块后，对每一列将独立触发以下物理法则：
+
+该列剩余的方块将向下沉落，严丝合缝地填满底部。
+顶部空出的格子将由预生成队列依次补充。队列由固定种子预先生成，因为 Riki 获取了底层代码，我们甚至为你提供了 预知未来（ preview ） 功能！
+公平性机制：评测机使用固定种子进行评测，最终得分为所有关卡的得分之和。无论你的程序采用何种策略，只要在同一列消除了相同数量的方块，得到的补充方块完全一致。
+
+关卡变异
+嘉豪为 “他” 的防线设计了 5 层变异：
+
+关卡	棋盘	特殊机制
+1	
+10
+×
+10
+10×10	纯 5 色基础方块
+2	
+10
+×
+10
+10×10	同关卡 1，因为嘉豪把代码复制了一遍忘记改了
+3	
+10
+×
+10
+10×10	加入万能块（出现概率 
+15
+%
+15%），提升连通性
+4	
+10
+×
+10
+10×10	加入炸弹块（出现概率 
+10
+%
+10%），炸弹九宫格洗地获取加分
+5	
+12
+×
+12
+12×12	混合大乱斗：
+12
+×
+12
+12×12 棋盘 + 万能块 (
+15
+%
+15%) + 炸弹 (
+10
+%
+10%)
+游戏结束 & 错误惩罚
+每关最多允许进行 50 步（包含非法步），步数耗尽后关卡结算。若发生以下情况，关卡将提前终止：
+
+死局：棋盘上不存在任何满足连线条件的相邻格子对。
+系统死机：你的程序连续输出 3 次非法操作。
+错误惩罚：若你的操作非法，嘉豪会非常生气，本次操作将会消耗 1 步，得 0 分，且棋盘不会发生任何改变。为了防止你一直犯错，Riki 偷偷告诉你，评测机其实会返回报错信息：
+
+错误码	含义
+1	路径长度小于 2
+2	坐标越界
+3	路径中存在重复坐标
+4	相邻坐标不满足四联通
+5	路径上存在颜色不一致的方块
+快速入门
+你只需要修改辅助代码中的 find_best_path 函数。代码默认实现了一个 **“每次寻找最近可连接的两格并消除”** 的简单策略，你可以在此基础上修改，利用沙盘推演方法寻找更高分的路径！
+
+演示代码
+为了方便你直接上手编写策略，我们强烈建议你直接使用我们的演示代码作为模板。
+
+#if __cplusplus < 201700L
+#error "C++17 required"
+#endif
+
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <random>
+
+// ============================================================
+// 数据模型（带底层完美沙盘推演）
+// ============================================================
+
+struct Cell {
+    int value = 1;
+    int  color()       const { return std::abs(value); }
+    bool is_bomb()     const { return value < 0; }
+    bool is_wildcard() const { return value == 0; }
+};
+
+struct Board {
+    int N = 0;
+    int level = 1;
+    std::vector<std::vector<Cell>> grid;
+    
+    // 底层引擎变量：未来掉落物预知队列
+    std::vector<std::vector<int>> drop_queue; 
+    std::vector<int> queue_ptr;
+
+    explicit Board(int n = 0) : N(n), grid(n, std::vector<Cell>(n)) {}
+
+    Cell&       at(int r, int c)       { return grid[r][c]; }
+    const Cell& at(int r, int c) const { return grid[r][c]; }
+    bool in_bounds(int r, int c) const { return r >= 0 && r < N && c >= 0 && c < N; }
+
+    // 【核心功能：未来预知引擎】
+    // 输入：一条打算行走的路径
+    // 返回：走出这条路径后的完美盘面预测（包含确切的新掉落方块！）
+    Board preview(const std::vector<std::pair<int,int>>& path) const {
+        Board next_b = *this; 
+        if (path.size() < 2) return next_b;
+
+        std::vector<std::vector<bool>> in_path(N, std::vector<bool>(N, false));
+        for (auto p : path) in_path[p.first][p.second] = true;
+
+        std::vector<std::vector<bool>> to_remove = in_path;
+
+        // 模拟炸弹爆炸
+        if (level >= 4) {
+            for (auto [r, c] : path) {
+                if (!at(r, c).is_bomb()) continue;
+                for (int dr = -1; dr <= 1; ++dr) {
+                    for (int dc = -1; dc <= 1; ++dc) {
+                        int nr = r + dr, nc = c + dc;
+                        if (in_bounds(nr, nc) && !in_path[nr][nc]) {
+                            to_remove[nr][nc] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 模拟重力下落与新块生成
+        for (int c = 0; c < N; ++c) {
+            std::vector<Cell> remaining;
+            for (int r = 0; r < N; ++r) {
+                if (!to_remove[r][c]) remaining.push_back(at(r, c));
+            }
+            int empty = N - (int)remaining.size();
+            for (int i = 0; i < empty; ++i) {
+                int val = next_b.drop_queue[c][next_b.queue_ptr[c]++];
+                next_b.at(i, c).value = val;
+            }
+            for (int i = 0; i < (int)remaining.size(); ++i) {
+                next_b.at(empty + i, c) = remaining[i];
+            }
+        }
+        return next_b;
+    }
+    
+    // 是否死局检测
+    bool is_deadlocked() const {
+        for (int r = 0; r < N; ++r) {
+            for (int c = 0; c < N; ++c) {
+                int ac = at(r, c).color();
+                if (c + 1 < N) {
+                    int ac2 = at(r, c + 1).color();
+                    if (ac == ac2 || ac == 0 || ac2 == 0) return false;
+                }
+                if (r + 1 < N) {
+                    int ac2 = at(r + 1, c).color();
+                    if (ac == ac2 || ac == 0 || ac2 == 0) return false;
+                }
+            }
+        }
+        return true;
+    }
+};
+
+// ============================================================
+// 中间件：GameController
+// ============================================================
+
+class GameController {
+    Board _board;
+    int   _level = 0;
+    int   _step  = 0;
+    int   _score = 0;
+    bool  _done  = false;
+    std::string _pending_line;
+    std::vector<std::pair<int,int>> _last_path;
+
+    static int try_parse_level(const std::string& line, int& level, int& seed) {
+        int lv, sd, N, steps;
+        if (std::sscanf(line.c_str(), "LEVEL %d SEED %d SIZE %d STEPS %d", &lv, &sd, &N, &steps) == 4) {
+            level = lv;
+            seed = sd;
+            return N;
+        }
+        return 0;
+    }
+
+    static bool try_parse_step(const std::string& line, int& step, int& score, bool& valid) {
+        char buf[16] = {};
+        if (std::sscanf(line.c_str(), "STEP %d SCORE %d %15s", &step, &score, buf) >= 3) {
+            valid = (std::string(buf) == "VALID");
+            return true;
+        }
+        return false;
+    }
+
+    static int gen_block(std::mt19937& rng, int level) {
+        if (level <= 2) return (rng() % 5) + 1;
+        else if (level == 3) return ((rng() % 100) < 15) ? 0 : (rng() % 5) + 1;
+        else if (level == 4) {
+            int color = (rng() % 5) + 1;
+            return ((rng() % 100) < 10) ? -color : color;
+        } else {
+            if ((rng() % 100) < 15) return 0;
+            int base = (rng() % 5) + 1;
+            return ((rng() % 100) < 10) ? -base : base;
+        }
+    }
+
+    static void init_queues(Board& b, int seed, int N, int level) {
+        b.level = level;
+        std::mt19937 rng(seed);
+        b.drop_queue.assign(N, std::vector<int>(1000));
+        b.queue_ptr.assign(N, 0);
+        for (int c = 0; c < N; ++c) {
+            for (int i = 0; i < 1000; ++i) b.drop_queue[c][i] = gen_block(rng, level);
+        }
+    }
+
+    bool read_line(std::string& line) {
+        if (!_pending_line.empty()) {
+            line = std::move(_pending_line);
+            _pending_line.clear();
+            return true;
+        }
+        return (bool)std::getline(std::cin, line);
+    }
+
+    Board read_board(int N) {
+        Board board(N);
+        for (int row = 0; row < N; ++row) {
+            std::string line;
+            read_line(line);
+            std::istringstream ls(line);
+            for (int c = 0; c < N; ++c) ls >> board.at(row, c).value;
+        }
+        return board;
+    }
+
+    void drain_trailing() {
+        std::string line;
+        while (std::cin.rdbuf()->in_avail() > 0) {
+            if (!read_line(line)) break;
+            if (line.empty() || line.find("LEVEL_END") != std::string::npos) continue;
+            if (line.find("FINAL_SCORE") != std::string::npos) {
+                _done = true; continue;
+            }
+            _pending_line = std::move(line); break;
+        }
+    }
+
+public:
+    const Board& board() const { return _board; }
+    int level() const { return _level; }
+    int step()  const { return _step;  }
+    int score() const { return _score; }
+    bool done() const { return _done;  }
+
+    bool update() {
+        std::string first_line;
+        while (true) {
+            if (!read_line(first_line)) { _done = true; return false; }
+            if (!first_line.empty()) break;
+        }
+
+        if (first_line.find("LEVEL_END") != std::string::npos ||
+            first_line.find("FINAL_SCORE") != std::string::npos) {
+            _done = true; return false;
+        }
+
+        int seed;
+        int new_N = try_parse_level(first_line, _level, seed);
+        if (new_N > 0) {
+            Board new_board = read_board(new_N);
+            init_queues(new_board, seed, new_N, _level);
+            _board = std::move(new_board);
+            _step = 0; _score = 0;
+            drain_trailing();
+            return true;
+        }
+
+        int step, score; bool valid;
+        if (try_parse_step(first_line, step, score, valid)) {
+            _step = step; _score = score;
+            
+            // 同步指针：如果上一步合法，我们在本地走一遍以消耗掉正确的 queue_ptr
+            Board predicted = (valid && !_last_path.empty()) ? _board.preview(_last_path) : _board;
+            
+            Board new_board = read_board(_board.N);
+            new_board.level = _level;
+            new_board.drop_queue = std::move(predicted.drop_queue);
+            new_board.queue_ptr = std::move(predicted.queue_ptr);
+            _board = std::move(new_board);
+            _last_path.clear();
+
+            drain_trailing();
+            if (!_pending_line.empty()) { 
+                int next_level, next_seed;
+                int next_N = try_parse_level(_pending_line, next_level, next_seed);
+                if (next_N > 0) {
+                    _level = next_level;
+                    _pending_line.clear();
+                    Board nb = read_board(next_N);
+                    init_queues(nb, next_seed, next_N, next_level);
+                    _board = std::move(nb);
+                    _step = 0; _score = 0;
+                    drain_trailing();
+                }
+            }
+            return true;
+        }
+
+        _done = true;
+        return false;
+    }
+
+    void respond(const std::vector<std::pair<int,int>>& path) {
+        _last_path = path;
+        std::cout << path.size();
+        for (auto [r, c] : path) std::cout << ' ' << r << ' ' << c;
+        std::cout << '\n';
+        std::cout.flush();
+    }
+};
+
+// ============================================================
+// 工具函数
+// ============================================================
+
+constexpr int DR[] = {-1, 1, 0, 0};
+constexpr int DC[] = { 0, 0,-1, 1};
+
+int path_score(int k) {
+    double t = std::sqrt(static_cast<double>(k)) - 1.0;
+    return 10 * k + 18 * static_cast<int>(t * t);
+}
+
+int path_score(const Board& board, const std::vector<std::pair<int,int>>& path) {
+    int k = static_cast<int>(path.size());
+    int s = path_score(k);
+
+    std::vector<std::vector<bool>> in_path(board.N, std::vector<bool>(board.N, false));
+    for (auto [r, c] : path) in_path[r][c] = true;
+    std::vector<std::vector<bool>> exploded(board.N, std::vector<bool>(board.N, false));
+
+    for (auto [r, c] : path) {
+        if (!board.at(r, c).is_bomb()) continue;
+        for (int dr = -1; dr <= 1; ++dr)
+            for (int dc = -1; dc <= 1; ++dc) {
+                int nr = r + dr, nc = c + dc;
+                if (board.in_bounds(nr, nc) && !in_path[nr][nc] && !exploded[nr][nc]) {
+                    exploded[nr][nc] = true;
+                    s += 10;
+                }
+            }
+    }
+    return s;
+}
+
+// ============================================================
+// 解题逻辑（如果你不理解这份代码其他部分在干什么，请仅在此处进行策略实现和修改）
+// ============================================================
+
+std::vector<std::pair<int,int>> find_best_path(const Board& board) {
+    int N = board.N;
+
+    // 遍历整个棋盘，寻找最近的（任意一对）可连接的相邻两格
+    // 这是独属于嘉豪的雷霆策略
+    for (int r = 0; r < N; ++r) {
+        for (int c = 0; c < N; ++c) {
+            int color1 = board.at(r, c).color();
+
+            // 检查右侧相邻格子
+            if (c + 1 < N) {
+                int color2 = board.at(r, c + 1).color();
+                if (color1 == color2 || color1 == 0 || color2 == 0) {
+                    return {{r, c}, {r, c + 1}};
+                }
+            }
+
+            // 检查下方相邻格子
+            if (r + 1 < N) {
+                int color2 = board.at(r + 1, c).color();
+                if (color1 == color2 || color1 == 0 || color2 == 0) {
+                    return {{r, c}, {r + 1, c}};
+                }
+            }
+        }
+    }
+
+    // 兜底防御机制：理论上死局评测机会结束，若未结束强制返回两格防报错1
+    return {{0, 0}, {0, 1}};
+}
+
+int main() {
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+
+    GameController ctl;
+    while (ctl.update()) {
+        auto path = find_best_path(ctl.board());
+        ctl.respond(path);
+    }
+    return 0;
+}
+使用文档
+以下是我们对参考代码部分内容的讲解，以便你快速了解该如何使用这份参考代码。
+
+架构总览
+
+在本次的 GameController 框架中，所有评测机的指令解析、脏字符清理以及底层的随机数种子（PRNG）同步都已经为你封装得滴水不漏。你只需直接使用 Board 以及辅助工具函数，即可开展高效率的搜索。
+
+数据模型：Cell
+
+代表棋盘上的单个方块，自带极客解包属性。
+
+签名	作用
+value	（字段）原始方块数值（
+−
+5
+∼
+5
+−5∼5）
+color() -> int	获取该方块的绝对颜色标识（
+0
+∼
+5
+0∼5），万能块返回 0 。
+is_wildcard() -> bool	是否是万能块？
+is_bomb() -> bool	是否是炸弹块？
+数据模型：Board
+
+全局棋盘状态。行下标 
+r
+r 访问范围 [0, N-1] （上至下），列下标 
+c
+c 访问范围 [0, N-1] （左至右）。
+
+签名	作用
+N	（字段）当前棋盘边长（
+10
+10 或 
+12
+12）
+at(int r, int c) -> Cell&	获取坐标 (r, c) 处的方块，亦可用 const 修饰。
+in_bounds(int r, int c) -> bool	判断坐标是否在棋盘的合法范围内。
+preview(const vector<pair<int,int>>& path) -> Board	核心引擎：预知未来。传入一条打算行走的合法路径，立刻返回一个新的 Board 。它不仅会处理爆炸消除和重力下落，更因破解了生成器种子，补位进来的新方块 100% 精确等于评测机真实结果！
+is_deadlocked() -> bool	检测如果在该盘面上，是否已经无路可走（死局判定）。
+工具函数
+
+位于全局命名空间，用于辅助你评估每一步棋的价值：
+
+签名	作用
+DR[4], DC[4]	预设的四联通方向位移常数数组（代表上下左右）。
+path_score(int k)	纯计算公式：给出仅根据路径长度 
+k
+k 获得的基础分数。
+path_score(const Board&, const vector<pair<int,int>>&)	核心评估器：计算某条连线落子后可获得的总分数（自动将路径经过炸弹引爆的九宫格外扩加分纳入计算）。
+运用预知未来的启发思路
+
+目前参考代码中的 find_best_path 仅仅做到了 “寻找相邻的 2 个同色块消除”。如果想获得高分，可以引入 preview 探索更长远的收益：
+
+// 假设你通过DFS找到了两条长度都是 5 的可行路径：path_A 和 path_B
+// 如果只看当步得分，它们分数可能一样。
+
+Board future_board_A = board.preview(path_A);
+if (future_board_A.is_deadlocked()) {
+    // 选 path_A 就会导致游戏提前结束，千万别走！
+}
+
+Board future_board_B = board.preview(path_B);
+// 你发现 future_board_B 掉落了2个连在一起的炸弹
+// 这时候果断选择 path_B，为下一次大丰收铺路！
+利用简单的深度为 
+2
+∼
+3
+2∼3 的二次搜索，便能避开大多数短视陷阱。
+
+Leverage Online Judge 0.3.2-beta © 2019-2023 ThinkSpirit. All rights reserved
+NUIST备 80065

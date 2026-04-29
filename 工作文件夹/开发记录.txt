@@ -1,0 +1,158 @@
+================================================================================
+   Project Block Sequence Grand Master! - Development Log
+================================================================================
+
+Date: 2026-04-29
+Target: Average score 29000+ across multiple seeds (5 levels total)
+
+================================================================================
+1. INITIAL ANALYSIS & LEARNING
+================================================================================
+[COMPLETED] Read and analyzed all project files:
+  - main.cpp, allstar.cpp, deepstar.cpp, best.cpp, eval_seed.cpp, ga_eval.cpp
+  - ga_opt.py, ga_search.py, ga_stable.py, ga_multi_seed.py, hill_climb.py
+  - optimize_l1_l2.py, random_search_stable.py
+  - nn_solver/* (board_features.h, nn_evaluator.h, nn_model.h, replay_buffer.h)
+  - 题目.txt (official problem statement with GameController protocol)
+  - 算法.TXT (859-line HACLMO algorithm design document)
+
+[COMPLETED] Extracted key parameters from:
+  - best_stable_v2.txt (GA-optimized for seed stability, 105 params)
+  - best_all_v2.txt (GA-optimized for raw average, 105 params)
+  - best_l1_114514.txt ~ best_l5_114514.txt (per-level optimization)
+  - orig_params.txt (baseline parameters)
+
+================================================================================
+2. SOLVER ARCHITECTURE DESIGN
+================================================================================
+[COMPLETED] Designed solver based on allstar.cpp + algorithm document:
+
+Core algorithm pipeline:
+  1. DFS enumeration with bipartite graph pruning (upper_bound_reachable)
+  2. Neighbor sorting (color/heuristic-based priority)
+  3. Cache-based 2-step lookahead (now + nxt score)
+  4. Sorting by (now+nxt-short_pen), keep top keep1 candidates
+  5. 3-step lookahead (now + nsc + tsc + dq + bh), keep top keep2
+  6. Survival check (simulate survival_steps ahead), penalty for low survival
+  7. Beam Search (beam_w x beam_d depth lookahead)
+  8. Return best path
+
+Level-specific strategies (from algorithm document):
+  - L1: Cascade Builder - large component first, high short_pen
+  - L2: Harvest Maximizer - small component first, lower short_pen
+  - L3: Bridge Connector - wildcard/bomb priority in DFS starts
+  - L4: Explosive Clearer - bomb blast optimization, beam search active
+  - L5: Adaptive Hybrid - 12x12 board, both wildcards+bombs
+
+Phase detection (from algorithm document Part 3):
+  - EARLY  (0-27% steps): dfs_limit * 1.25, more exploration
+  - MID    (28-67% steps): balanced parameters
+  - LATE   (68-89% steps): dfs_limit * 0.7, focused harvest
+  - URGENT (90%+ steps):   dfs_limit * 0.5, maximize scoring
+  - SURVIVAL (near-deadlock): boost surv_mul, reduce short_pen
+
+Time management:
+  - tfast: reduce params to 65% when elapsed > max_time * tfast_ratio
+  - tdead: return best immediately when elapsed > max_time * tdead_ratio
+
+================================================================================
+3. FILE STRUCTURE (工作文件夹/)
+================================================================================
+[COMPLETED] Created modular file structure:
+
+  solver_core.h    - Core declarations: Board, Cell, ImprovedSolver, NN evaluator
+  solver_core.cpp  - Core implementations: DFS, Beam Search, Phase detection, NN
+  solver.cpp       - Online submission binary (GameController + main)
+  solver_test.cpp  - Local test binary (LocalJudge + multi-seed evaluation)
+  nn_train.cpp     - Neural network self-play trainer
+  build.bat        - Windows build script
+  evaluate.py      - Python multi-seed evaluation script
+
+  also: 题目.txt, 算法.TXT, allstar_ref.cpp (reference only)
+
+================================================================================
+4. COMPILATION & INITIAL TESTING
+================================================================================
+[COMPLETED] Found working MSVC compiler:
+  - MSVC 19.44 (VS 2022) at D:\visualstudio2022\VC\Tools\MSVC\14.44.35207
+  - Windows SDK 10.0.26100.0 at D:\Windows Kits\10
+  - Command: cl /EHsc /std:c++17 /Zc:__cplusplus /O2 /MD
+
+[COMPLETED] Initial compilation: solver_core.h + solver_core.cpp + solver_test.cpp
+  - Fixed: removed #if __cplusplus < 201700L check (MSVC __cplusplus issue)
+  - Fixed: changed static members to inline static (linker issue LNK2019)
+
+[COMPLETED] Baseline test results (best_stable_v2.txt params, no NN):
+
+  5-seed test (42, 114514, 888888, 123456, 654321):
+
+  | Level | Seed 42  | 114514 | 888888 | 123456 | 654321 | Average |
+  |-------|----------|--------|--------|--------|--------|---------|
+  | L1    | 3,422    | 3,406  | 3,316  | 3,240  | 3,520  | 3,381   |
+  | L2    | 3,352    | 3,976  | 3,856  | 2,898  | 2,984  | 3,413   |
+  | L3    | 5,062    | 5,816  | 5,262  | 5,402  | 5,046  | 5,318   |
+  | L4    | 5,778    | 5,470  | 4,140  | 5,134  | 5,212  | 5,147   |
+  | L5    | 9,342    | 7,274  | 7,680  | 7,816  | 9,074  | 8,237   |
+  | Total | 26,956   | 25,942 | 24,254 | 24,490 | 25,836 | 25,496  |
+
+  All 5 seeds completed 50/50 steps on all 5 levels (no deadlocks/errors).
+  Target of 29000+ NOT YET REACHED. Gap: ~3,500 points needed.
+
+================================================================================
+5. NEURAL NETWORK TRAINING
+================================================================================
+[COMPLETED] Created nn_train.cpp - self-play neural network trainer:
+  - Network architecture: 52 features -> 64 (ReLU) -> 32 (ReLU) -> 1 (tanh)
+  - Training data: self-play games with Monte Carlo return labels
+  - Optimizer: Adam (lr=0.001, beta1=0.9, beta2=0.999)
+  - Loss: MSE
+  - Output scale: 1000x (tanh[-1,1] mapped to [-1000,1000])
+
+[COMPLETED] Training run:
+  - Games: 20 full games (each = 5 levels x ~50 steps = ~250 board states)
+  - Samples collected: ~5000 board states with future return labels
+  - Epochs: 50
+  - Output: nn_weights.bin (44,124 bytes)
+
+[COMPLETED] Integrated NN into solver:
+  - Added NNEvaluator class to solver_core.h
+  - Added nn_extract_features() 52-dim feature extraction
+  - Updated board_heuristic(): blend h*0.7 + nn*0.3 when NN loaded
+  - solver_test.cpp and solver.cpp auto-load nn_weights.bin
+
+================================================================================
+6. PARAMETER OPTIMIZATION (2nd round)
+================================================================================
+[COMPLETED] Updated init_best_params() with blended parameters from:
+  best_stable_v2.txt + best_all_v2.txt (higher search limits):
+
+  Changes vs baseline:
+  - L1: dfs_limit 1450K->1550K, max_time 16s->18s
+  - L2: dfs_limit 1250K->1350K, max_time 6s->10s, beam_w 0->5
+  - L3: dfs_limit 1250K->1300K, max_time 9.5s->12s
+  - L4: dfs_limit 450K->700K, max_time 5.5s->10s (+55% more search!)
+  - L5: dfs_limit 1000K->1200K, max_time 7s->10s, keep1 30->55
+
+================================================================================
+7. CURRENT STATUS & REMAINING WORK
+================================================================================
+
+CURRENT STATUS:
+  [OK] Solver architecture designed and implemented
+  [OK] Baseline solver compiled and tested (avg 25,496)
+  [OK] NN trainer created and trained (weights saved)
+  [OK] NN integration code written in solver_core
+  [OK] Parameters blended for higher search limits
+  [BUG] solver_core.cpp has MSVC encoding issue (Chinese chars corrupt compilation)
+  [TODO] Fix encoding, recompile with NN support, re-test
+  [TODO] Verify 29000+ target
+
+REMAINING WORK:
+  1. Fix solver_core.cpp encoding (remove all non-ASCII characters)
+  2. Recompile solver_test.exe with NN weights loaded
+  3. Run 5-seed test to verify score improvement
+  4. If 29000+ not reached: further parameter tuning or algorithm improvement
+  5. Recompile solver.cpp (online submit version)
+  6. Package final delivery
+
+================================================================================
